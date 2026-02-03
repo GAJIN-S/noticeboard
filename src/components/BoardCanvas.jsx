@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { Stage, Layer, Line, Circle } from 'react-konva';
-import { useBoardStore } from '../../store/useBoardStore';
+import { useBoardStore } from '../store/useBoardStore';
 import Background from './canvas/Background';
 import StickyNote from './canvas/StickyNote';
 import UrlImage from './canvas/UrlImage';

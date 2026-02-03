@@ -38,6 +38,7 @@ export const useBoardStore = create((set, get) => ({
         connections: state.connections.filter((c) => c.fromId !== id && c.toId !== id),
         selection: state.selection.filter((selId) => selId !== id)
     })),
+    deleteItem: (id) => get().removeItem(id),
 
     addConnection: (connection) => set((state) => ({ connections: [...state.connections, connection] })),
     removeConnection: (id) => set((state) => ({
