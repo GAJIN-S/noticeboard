@@ -19,6 +19,7 @@ export const useBoardStore = create((set, get) => ({
     tool: 'select',
     penColor: '#000000',
     penSize: 2,
+    eraserSize: 20,
 
     // Actions
     setBoardTitle: (title) => set({ title }),
@@ -28,6 +29,7 @@ export const useBoardStore = create((set, get) => ({
     setTool: (tool) => set({ tool }),
     setPenColor: (color) => set({ penColor: color }),
     setPenSize: (size) => set({ penSize: size }),
+    setEraserSize: (size) => set({ eraserSize: size }),
 
     addItem: (item) => set((state) => ({ items: [...state.items, item] })),
     updateItem: (id, updates) => set((state) => ({

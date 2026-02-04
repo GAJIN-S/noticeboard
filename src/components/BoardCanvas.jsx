@@ -1,10 +1,12 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { Stage, Layer, Line, Circle } from 'react-konva';
 import { useBoardStore } from '../store/useBoardStore';
 import Background from './canvas/Background';
 import StickyNote from './canvas/StickyNote';
 import UrlImage from './canvas/UrlImage';
+import TextItem from './canvas/TextItem';
 import { v4 as uuidv4 } from 'uuid';
+
 import { uploadImage } from '../utils/uploadImage';
 
 const BoardCanvas = () => {
@@ -21,14 +23,156 @@ const BoardCanvas = () => {
         setTool,
         drawings,
         addDrawing,
+
         penColor,
         penSize,
+        eraserSize, // Added
         connections,
         addConnection
     } = useBoardStore();
 
+
     const [currentLine, setCurrentLine] = useState(null);
     const [connectingFrom, setConnectingFrom] = useState(null);
+    const [editingItem, setEditingItem] = useState(null); // ID of item being edited
+    const textareaRef = useRef(null);
+
+    // Initial focus support for invalidating selection or starting types
+    useEffect(() => {
+        const handleKeyDown = (e) => {
+            // Ignore if we are already editing in the textarea
+            if (editingItem) return;
+
+            // Ignore shortcuts (Ctrl/Cmd/Alt)
+            if (e.ctrlKey || e.metaKey || e.altKey) return;
+
+            // Start typing if it's a regular key (length 1)
+            if (e.key.length === 1) {
+                // Determine position
+                let x, y;
+                const stage = stageRef.current;
+
+                // If selection has an image/note, place under it
+                if (selection.length === 1) {
+                    const selectedItem = items.find(i => i.id === selection[0]);
+                    if (selectedItem) {
+                        x = selectedItem.x;
+                        y = selectedItem.y + (selectedItem.height * (selectedItem.scaleY || 1)) + 20;
+                    } else {
+                        // Fallback to cursor
+                        const pos = toRelative(stage.getPointerPosition() || stage.getPointerPosition() || { x: window.innerWidth / 2, y: window.innerHeight / 2 }); // fallback if no pointer
+                        x = pos.x;
+                        y = pos.y;
+                    }
+                } else {
+                    // Place at mouse position or center
+                    const pointer = stage.getPointerPosition();
+                    const pos = pointer ? toRelative(pointer) : toRelative({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
+                    x = pos.x;
+                    y = pos.y;
+                }
+
+                const newItem = {
+                    id: uuidv4(),
+                    type: 'text',
+                    x,
+                    y,
+                    content: e.key,
+                    fontSize: 20,
+                    fontFamily: "'Inter', sans-serif",
+                    color: penColor !== '#000000' ? penColor : '#000000', // Use current pen color if set, else black
+                };
+
+                addItem(newItem);
+                setEditingItem(newItem.id);
+                setSelection([newItem.id]);
+
+                // We need to wait for render to focus the textarea? 
+                // We'll trust the useEffect depends on editingItem to focus.
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [editingItem, selection, items, stageRef, penColor, addItem, setSelection]);
+
+    useEffect(() => {
+        if (editingItem && textareaRef.current) {
+            // Focus and put cursor at end
+            textareaRef.current.focus();
+            textareaRef.current.selectionStart = textareaRef.current.value.length;
+        }
+    }, [editingItem]);
+
+    const handleTextareaBlur = () => {
+        const item = items.find(i => i.id === editingItem);
+        // If empty content, remove item? Or just keep it.
+        // Let's keep it for now.
+        setEditingItem(null);
+    };
+
+    const handleTextChange = (e) => {
+        const val = e.target.value;
+        const item = items.find(i => i.id === editingItem);
+        if (item) {
+            useBoardStore.getState().updateItem(editingItem, { content: val });
+
+            // Auto-resize logic
+            e.target.style.height = 'auto';
+            e.target.style.height = e.target.scrollHeight + 'px';
+
+            // For width, it's tricker with textarea. 
+            // We can use a canvas measure or a hidden span.
+            // For now, let's just use a reasonable min-width and allow manual resize if we were using a different element.
+            // But since we want "type anywhere", maybe we just give it a large width if it's meant to be a line?
+            // Or better: Use `cols`?
+            e.target.style.width = 'auto';
+            e.target.style.width = (e.target.scrollWidth + 10) + 'px';
+        }
+    };
+
+    // Calculate textarea position
+    const getTextAreaStyle = () => {
+        if (!editingItem) return { display: 'none' };
+        const item = items.find(i => i.id === editingItem);
+        if (!item) return { display: 'none' };
+
+        const stage = stageRef.current;
+        const stagePos = stage.position();
+        const stageScale = stage.scaleX();
+
+        // Convert item position to absolute window coordinates
+        // item.x/y are relative to stage origin (inside the scaled stage)
+        // so: absoluteX = stage.x + (item.x * stage.scale)
+        const absX = stagePos.x + (item.x * stageScale);
+        const absY = stagePos.y + (item.y * stageScale);
+
+        const fontSize = (item.fontSize || 20) * stageScale * (item.scaleX || 1);
+
+        return {
+            position: 'absolute',
+            top: absY + 'px',
+            left: absX + 'px',
+            fontSize: fontSize + 'px',
+            lineHeight: 1.2, // Match Konva text default
+            color: item.color,
+            fontFamily: item.fontFamily,
+            border: '1px dashed #ccc', // Initial border to see it
+            padding: '0px',
+            margin: '0px',
+            outline: 'none',
+            background: 'transparent',
+            resize: 'none',
+            overflow: 'hidden',
+            whiteSpace: 'pre',
+            zIndex: 100,
+            transformOrigin: 'top left',
+            transform: `rotate(${item.rotation || 0}deg)`,
+            minWidth: '50px',
+            minHeight: fontSize * 1.2 + 'px',
+        };
+    };
+
 
     const handleWheel = (e) => {
         e.evt.preventDefault();
@@ -76,10 +220,32 @@ const BoardCanvas = () => {
                 tool,
                 points: [pos.x, pos.y],
                 color: tool === 'eraser' ? null : penColor,
-                size: penSize
+                size: tool === 'eraser' ? (eraserSize || 20) : penSize // Use eraser size
             });
             return;
         }
+
+        if (tool === 'text') {
+            // Create text at click position
+            const newItem = {
+                id: uuidv4(),
+                type: 'text',
+                x: pos.x,
+                y: pos.y,
+                content: 'Type here...',
+                fontSize: 20,
+                fontFamily: "'Inter', sans-serif",
+                color: penColor !== '#000000' ? penColor : '#000000',
+            };
+            addItem(newItem);
+            setEditingItem(newItem.id);
+            setSelection([newItem.id]);
+            setTool('select'); // Switch back to select? Or keep text tool?
+            // Usually text tools switch back after one placement, or stay. 
+            // Let's switch back for workflow simplicity.
+            return;
+        }
+
 
         if (e.target === stage) {
             setSelection([]);
@@ -143,6 +309,19 @@ const BoardCanvas = () => {
             setSelection([item.id]);
         }
     };
+
+    const handleStageClick = (e) => {
+        // Double click to edit text (or create text?)
+        // Actually we used keydown. But double click on valid item should edit.
+        // We need to handle this in `handleItemDblClick` or similar.
+    };
+
+    const handleItemDblClick = (e, item) => {
+        if (item.type === 'text' || item.type === 'note') {
+            setEditingItem(item.id);
+        }
+    };
+
 
     const handleDrop = async (e) => {
         e.preventDefault();
@@ -220,9 +399,11 @@ const BoardCanvas = () => {
                 onTouchMove={handleMouseMove}
                 onTouchEnd={handleMouseUp}
                 ref={stageRef}
-                className={tool === 'pen' || tool === 'eraser' ? 'cursor-crosshair' : tool === 'connect' ? 'cursor-crosshair' : 'cursor-default'}
+                className={tool === 'pen' || tool === 'eraser' ? 'cursor-crosshair' : tool === 'connect' ? 'cursor-crosshair' : tool === 'text' ? 'cursor-text' : 'cursor-default'}
+
             >
                 <Layer>
+
                     <Background />
                 </Layer>
 
@@ -239,17 +420,27 @@ const BoardCanvas = () => {
 
                 <Layer>
                     {items.map((item) => {
-                        const Component = item.type === 'note' ? StickyNote : UrlImage;
+                        let Component;
+                        switch (item.type) {
+                            case 'note': Component = StickyNote; break;
+                            case 'image': Component = UrlImage; break;
+                            case 'text': Component = TextItem; break;
+                            default: Component = StickyNote;
+                        }
+
                         return (
                             <Component
                                 key={item.id}
                                 item={item}
                                 isSelected={selection.includes(item.id)}
+                                isEditing={editingItem === item.id}
                                 onClick={handleItemClick}
+                                onDblClick={(e) => handleItemDblClick(e, item)}
                             />
                         );
                     })}
                 </Layer>
+
 
                 {/* Strings on Top of Items to look like they are tied to the pins */}
                 <Layer listening={false}>
@@ -314,6 +505,26 @@ const BoardCanvas = () => {
                     Select another item to connect thread...
                 </div>
             )}
+
+            {/* Text Editing Overlay */}
+            {editingItem && (() => {
+                const item = items.find(i => i.id === editingItem);
+                if (!item) return null;
+                return (
+                    <textarea
+                        ref={textareaRef}
+                        value={item.content}
+                        onChange={handleTextChange}
+                        onBlur={handleTextareaBlur}
+                        style={getTextAreaStyle()}
+                        // Autosize logic could go here or via library. 
+                        // For a simple text tool, we want it to expand. 
+                        // We can solve this by calculating cols/rows or just explicit px width.
+                        // A quick hack for auto-width is using a span measurer, but for now fixed min width.
+                        className="bg-transparent border-none outline-none resize-none overflow-hidden"
+                    />
+                );
+            })()}
         </div>
     );
 };
