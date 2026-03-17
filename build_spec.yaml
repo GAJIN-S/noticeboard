@@ -1,0 +1,10 @@
+version: 0.1
+component: build
+timeoutInSeconds: 6000
+shell: bash
+steps:
+  - type: Command
+    name: "Initial Setup and Test"
+    command: |
+      echo "Hello from your OCI Build Pipeline!"
+      python --version
