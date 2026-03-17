@@ -7,4 +7,4 @@ steps:
     name: "Initial Setup and Test"
     command: |
       echo "Hello from your OCI Build Pipeline!"
-      python --version
+      python3 --version
