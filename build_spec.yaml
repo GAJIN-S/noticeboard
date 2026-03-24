@@ -8,3 +8,12 @@ steps:
     command: |
       echo "Hello from your OCI Build Pipeline!"
       python3 --version
+  - type: Command
+    name: "Package Application"
+    command: |
+      echo "Zipping the application files..."
+      zip -r noticeboard.zip . -x "*.git*"
+outputArtifacts:
+  - name: app_zip
+    type: BINARY
+    location: noticeboard.zip
