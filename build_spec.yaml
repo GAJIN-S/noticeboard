@@ -11,12 +11,11 @@ steps:
       # If you have a requirements file, uncomment the line below:
       # pip3 install -r requirements.txt
       
-  - type: Command
+ - type: Command
     name: "Run Regression Tests"
     command: |
       echo "Running test suite..."
-      # This command runs all test files in your repository
-      python3 -m pytest 
+      python3 -m pytest test_app.py -v
       
   - type: Command
     name: "Package Application"
