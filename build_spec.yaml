@@ -4,15 +4,26 @@ timeoutInSeconds: 6000
 shell: bash
 steps:
   - type: Command
-    name: "Initial Setup and Test"
+    name: "Install Dependencies"
     command: |
-      echo "Hello from your OCI Build Pipeline!"
-      python3 --version
+      echo "Installing Python testing tools..."
+      pip3 install pytest
+      # If you have a requirements file, uncomment the line below:
+      # pip3 install -r requirements.txt
+      
+  - type: Command
+    name: "Run Regression Tests"
+    command: |
+      echo "Running test suite..."
+      # This command runs all test files in your repository
+      python3 -m pytest 
+      
   - type: Command
     name: "Package Application"
     command: |
       echo "Zipping the application files..."
       zip -r noticeboard.zip . -x "*.git*"
+      
 outputArtifacts:
   - name: app_zip
     type: BINARY
