@@ -8,21 +8,19 @@ steps:
     command: |
       echo "Installing Python testing tools..."
       pip3 install pytest
-      # If you have a requirements file, uncomment the line below:
-      # pip3 install -r requirements.txt
-      
- - type: Command
+
+  - type: Command
     name: "Run Regression Tests"
     command: |
       echo "Running test suite..."
       python3 -m pytest test_app.py -v
-      
+
   - type: Command
     name: "Package Application"
     command: |
       echo "Zipping the application files..."
       zip -r noticeboard.zip . -x "*.git*"
-      
+
 outputArtifacts:
   - name: app_zip
     type: BINARY
